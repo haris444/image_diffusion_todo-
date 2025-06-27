@@ -83,10 +83,33 @@ class DDPMScheduler(BaseScheduler):
             sample_prev (`torch.Tensor [B,C,H,W]`): one step denoised sample. (= x_{t-1})
         """
 
-        ######## TODO ########
-        # Assignment -- Implement the DDPM reverse step.
-        sample_prev = None
-        #######################
+        # Convert t to tensor if it's not already
+        if isinstance(t, int):
+            t_tensor = torch.tensor([t] * x_t.shape[0], device=x_t.device)
+        else:
+            t_tensor = t
+
+        # Get values for timestep t
+        alpha_t = self._get_teeth(self.alphas, t_tensor)
+        alpha_cumprod_t = self._get_teeth(self.alphas_cumprod, t_tensor)
+        beta_t = self._get_teeth(self.betas, t_tensor)
+        sigma_t = self._get_teeth(self.sigmas, t_tensor)
+
+        # Compute the mean of x_{t-1}
+        # mean = (1 / sqrt(alpha_t)) * (x_t - (beta_t / sqrt(1 - alpha_cumprod_t)) * eps_theta)
+        sqrt_alpha_t = torch.sqrt(alpha_t)
+        sqrt_one_minus_alpha_cumprod_t = torch.sqrt(1 - alpha_cumprod_t)
+
+        mean = (1 / sqrt_alpha_t) * (x_t - (beta_t / sqrt_one_minus_alpha_cumprod_t) * eps_theta)
+
+        # Add noise if not at the final step (t > 0)
+        if isinstance(t, int) and t == 0:
+            # No noise at the final step
+            sample_prev = mean
+        else:
+            # Sample noise and add it
+            noise = torch.randn_like(x_t)
+            sample_prev = mean + sigma_t * noise
         
         return sample_prev
     
@@ -116,9 +139,11 @@ class DDPMScheduler(BaseScheduler):
         if eps is None:
             eps       = torch.randn(x_0.shape, device='cuda')
 
-        ######## TODO ########
-        # Assignment -- Implement the DDPM forward step.
-        x_t = None
-        #######################
+        # Implementation of the forward diffusion process
+        # x_t = sqrt(alpha_cumprod_t) * x_0 + sqrt(1 - alpha_cumprod_t) * eps
+        alpha_cumprod_t = self._get_teeth(self.alphas_cumprod, t)
+        sqrt_alpha_cumprod_t = torch.sqrt(alpha_cumprod_t)
+        sqrt_one_minus_alpha_cumprod_t = torch.sqrt(1 - alpha_cumprod_t)
+        x_t = sqrt_alpha_cumprod_t * x_0 + sqrt_one_minus_alpha_cumprod_t * eps
 
         return x_t, eps

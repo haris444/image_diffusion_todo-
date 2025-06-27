@@ -14,12 +14,23 @@ class DiffusionModule(nn.Module):
         self.var_scheduler = var_scheduler
 
     def get_loss(self, x0, class_label=None, noise=None):
-        ######## TODO ########
-        # Assignment -- compute noise matching loss.
+        # Sample random timesteps for each sample in the batch
         B = x0.shape[0]
-        timestep = self.var_scheduler.uniform_sample_t(B, self.device)        
-        loss = x0.mean()
-        ######################
+        timestep = self.var_scheduler.uniform_sample_t(B, self.device)
+
+        # Add noise to x0 to get x_t using the forward process
+        x_t, noise = self.var_scheduler.add_noise(x0, timestep, noise)
+
+        # Predict the noise using the network
+        if class_label is not None:
+            # Conditional generation
+            noise_pred = self.network(x_t, timestep, class_label=class_label)
+        else:
+            # Unconditional generation
+            noise_pred = self.network(x_t, timestep)
+
+        # Compute MSE loss between predicted and actual noise
+        loss = torch.nn.functional.mse_loss(noise_pred, noise)
         return loss
     
     @property
