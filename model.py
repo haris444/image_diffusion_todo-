@@ -43,11 +43,11 @@ class DiffusionModule(nn.Module):
 
     @torch.no_grad()
     def sample(
-        self,
-        batch_size,
-        return_traj=False,
-        class_label: Optional[torch.Tensor] = None,
-        guidance_scale: Optional[float] = 1.0,
+            self,
+            batch_size,
+            return_traj=False,
+            class_label: Optional[torch.Tensor] = None,
+            guidance_scale: Optional[float] = 1.0,
     ):
         x_T = torch.randn([batch_size, 3, self.image_resolution, self.image_resolution]).to(self.device)
 
@@ -59,12 +59,18 @@ class DiffusionModule(nn.Module):
         traj = [x_T]
         for t in tqdm(self.var_scheduler.timesteps):
             x_t = traj[-1]
+
+            # Move the timestep tensor to the correct device
+            t_on_device = t.to(self.device)
+
             if do_classifier_free_guidance:
                 raise NotImplementedError("ignore")
             else:
-                noise_pred = self.network(x_t, timestep=t.to(self.device))
+                # Use the on-device timestep tensor
+                noise_pred = self.network(x_t, timestep=t_on_device)
 
-            x_t_prev = self.var_scheduler.step(x_t, t, noise_pred)
+            # Pass the on-device timestep tensor to the step function
+            x_t_prev = self.var_scheduler.step(x_t, t_on_device, noise_pred)
 
             traj[-1] = traj[-1].cpu()
             traj.append(x_t_prev.detach())
