@@ -14,22 +14,22 @@ class DiffusionModule(nn.Module):
         self.var_scheduler = var_scheduler
 
     def get_loss(self, x0, class_label=None, noise=None):
-        # Sample random timesteps for each sample in the batch
+        # sample random timestep
         B = x0.shape[0]
         timestep = self.var_scheduler.uniform_sample_t(B, self.device)
 
-        # Add noise to x0 to get x_t using the forward process
-        x_t, noise = self.var_scheduler.add_noise(x0, timestep, noise)
+        # add noise and get xt
+        xt, noise = self.var_scheduler.add_noise(x0, timestep, noise)
 
         # Predict the noise using the network
         if class_label is not None:
             # Conditional generation
-            noise_pred = self.network(x_t, timestep, class_label=class_label)
+            noise_pred = self.network(xt, timestep, class_label=class_label)
         else:
             # Unconditional generation
-            noise_pred = self.network(x_t, timestep)
+            noise_pred = self.network(xt, timestep)
 
-        # Compute MSE loss between predicted and actual noise
+        # mse loss
         loss = torch.nn.functional.mse_loss(noise_pred, noise)
         return loss
     
@@ -60,16 +60,11 @@ class DiffusionModule(nn.Module):
         for t in tqdm(self.var_scheduler.timesteps):
             x_t = traj[-1]
 
-            # Move the timestep tensor to the correct device
+            # to train on gpu
             t_on_device = t.to(self.device)
 
-            if do_classifier_free_guidance:
-                raise NotImplementedError("ignore")
-            else:
-                # Use the on-device timestep tensor
-                noise_pred = self.network(x_t, timestep=t_on_device)
+            noise_pred = self.network(x_t, timestep=t_on_device)
 
-            # Pass the on-device timestep tensor to the step function
             x_t_prev = self.var_scheduler.step(x_t, t_on_device, noise_pred)
 
             traj[-1] = traj[-1].cpu()
